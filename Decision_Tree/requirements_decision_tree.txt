@@ -1,0 +1,9 @@
+graphviz
+streamlit
+seaborn
+mglearn
+pandas
+matplotlib
+ipython
+numpy
+scikit_learn
