@@ -1,8 +1,0 @@
-mglearn
-pandas
-seaborn
-streamlit
-matplotlib
-graphviz
-numpy
-scikit_learn
