@@ -1,7 +1,8 @@
-mglearn
-streamlit
-graphviz
-pandas
-matplotlib
-numpy
-scikit_learn
+matplotlib==3.2.2
+mglearn==0.1.9
+pandas==1.0.5
+streamlit==0.85.1
+graphviz==0.15
+numpy==1.21.1
+scikit_learn==0.24.2
+
