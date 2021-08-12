@@ -31,9 +31,18 @@ from IPython.display import clear_output, Image, display
 @st.cache(persist=True) # It will help in storing dataset and do not read again when any change is done on UI
 def load_data(file):
     data = pd.read_csv(file)
-    label = LabelEncoder() # transform categorical to numaric
+    return data
+    
+@st.cache(persist=True)    
+def preprocess_data(data):
+    #Missing Value imputation and encoding categorical columns
     for col in data.columns:
-        data[col] = label.fit_transform(data[col])
+        if data[col].dtypes=='object':
+            data[col]=data[col].fillna(data[col].mode()[0])
+            label = LabelEncoder()
+            data[col] = label.fit_transform(data[col])
+        else:
+            data[col]=data[col].fillna(data[col].median())
     return data
 
 
@@ -87,11 +96,11 @@ def main():
         noise=st.sidebar.slider('Select the noise',0.1,0.5)
         
         Xm, ym = make_moons(n_samples=n_samples, noise=noise, random_state=53)
-        st.write("Xm sample:\n", Xm[:5,:])
+        st.write("Xm sample:\n", Xm)
         
         #print("\n")
-        st.write("ym sample: ", ym[:5])
-        st.write('Above is shown only five samples out of n_samples =',n_samples)
+        st.write("ym sample: ", ym)
+        st.write('Above is shown n_samples =',n_samples)
         plt.scatter(Xm[:,0], Xm[:,1], c=ym)
         st.pyplot()
         st.write('Above figure is scatter plot for the given samples')
@@ -151,10 +160,10 @@ def main():
         # simulating dummy data to demo the concept
         np.random.seed(6)
         Xs = np.random.rand(100, 2) - 0.5
-        st.write("Xs vals: \n", Xs[:8,:])
+        st.write("Xs vals: \n", Xs)
         ys = (Xs[:, 0] > 0).astype(np.float32) * 2
-        st.write("ys vals: ", ys[:8])
-        st.write('Above data are some samples of complete dummy dataset')
+        st.write("ys vals: ", ys)
+        st.write('Above data is complete dummy dataset')
             
         # view data pattern
         plt.scatter(Xs[:,0], Xs[:,1], c=ys)
@@ -191,44 +200,56 @@ def main():
         #st.sidebar.write('Upload the dataset')
         uploaded_file = st.sidebar.file_uploader("Choose a CSV file", accept_multiple_files=False,type=['csv'],key='uploaded_file')
         if uploaded_file is not None:
-            data=load_data(uploaded_file)
-            st.write('Shape of the dataset',data.shape)
-            st.write(data.head(10))
-            st.sidebar.subheader("Data Partition")
+            data = load_data(uploaded_file)
+            data_1=data.copy()
+               
+            data_1=preprocess_data(data_1)
+            if st.sidebar.checkbox("Show raw data",False):
+                st.write(data)
+                st.write('Above is raw data')
+                  
+            if st.sidebar.checkbox("Show Preproces data",False):
+                st.write(data_1)
+                st.write('Above is Data After Preprocessing')
+               
+              
+            st.sidebar.subheader("Features Selection & Data Partition")
             tt_split = st.sidebar.beta_expander("Train/Test Split")
-            target=tt_split.selectbox("Select Target Variable",data.columns,key="target")
-            predictors=[v for v in data.columns if v!=target]
+            target=tt_split.selectbox("Select Target Variable",data_1.columns,key="target")
+            predictors=[v for v in data_1.columns if v!=target]
             new_predictors=tt_split.multiselect("Select Predictors",options=predictors,default=predictors)
             test_size = tt_split.number_input("Enter Test size (proportion)",0.10,0.5,step=0.1,key="test_size",value=0.30)
-            class_names = data[target].unique()
+            class_names = data_1[target].unique()
             
-            if  tt_split.button("Press for Splitting the dataset",key = "split"):
-                X_train, X_test, y_train, y_test = split(data,test_size,target,new_predictors)
-                
-            else:
-                X_train, X_test, y_train, y_test = split(data,0.3,target,new_predictors)
-                
-            st.write('X Train Data shape after splitting',X_train.shape)
-            st.write('X Test Data shape after splitting',X_test.shape)
-                
-            st.sidebar.subheader('Model Development')
-            max_depth=st.sidebar.slider('Maximum depth',1,10)
+            if tt_split.checkbox("Dataset with selected features",False):
+                st.write(data_1[new_predictors])
+                st.write("Above is the dataset with selected features")
             
-            # prune tree with 'max_depth' against overfitting & for better generalizn
-            tree = DecisionTreeClassifier(max_depth=max_depth, random_state=0)
-            tree.fit(X_train, y_train)
-            st.write("Accuracy on training set: ", round(tree.score(X_train, y_train), 3))   
-            st.write("Accuracy on test set: ", round(tree.score(X_test, y_test), 3)) 
+            
+            if  tt_split.checkbox("Split the dataset",False):
+                X_train, X_test, y_train, y_test = split(data_1,test_size,target,new_predictors)
+                st.write('X Train Data shape after splitting',X_train.shape)
+                st.write('X Test Data shape after splitting',X_test.shape)
+            
+                
+                st.sidebar.subheader('Model Development')
+                max_depth=st.sidebar.slider('Maximum depth',1,10)
+            
+                # prune tree with 'max_depth' against overfitting & for better generalizn
+                tree = DecisionTreeClassifier(max_depth=max_depth, random_state=0)
+                tree.fit(X_train, y_train)
+                st.write("Accuracy on training set: ", round(tree.score(X_train, y_train), 3))   
+                st.write("Accuracy on test set: ", round(tree.score(X_test, y_test), 3)) 
 
-            ## Analyzing Decision Trees
+                ## Analyzing Decision Trees
             
-            st.subheader('Analyzing the Decision Trees')
-            st.sidebar.write("Click the button below after setting the depth")
+                st.subheader('Analyzing the Decision Trees')
+                st.sidebar.subheader("Click the button below after setting the depth")
             if st.sidebar.button('Analyze the Decision Tree'):
                 export_graphviz(tree, 
                     out_file="tree.dot", 
-                    class_names=["survived", "died"],
-                    feature_names = predictors, impurity=False, filled=True)
+                    #class_names=["survived", "died"],
+                    feature_names = new_predictors, impurity=False, filled=True)
 
             # display the tree with graphviz
                 with open("tree.dot") as f:
@@ -236,15 +257,15 @@ def main():
                 st.graphviz_chart(dot_graph)
                 #Feature importance and plot
                 st.subheader('Feature Importance')
-                feat_imp_df = pd.DataFrame({'variable': predictors, 'imp_score':tree.feature_importances_})
+                feat_imp_df = pd.DataFrame({'variable': new_predictors, 'imp_score':tree.feature_importances_})
                 st.write(feat_imp_df.sort_values(by = 'imp_score', ascending=False))
                 
                 
                 #feature importance plot
                 st.subheader('Feature Importance Plot')
-                n_features = data.shape[1]-1
+                n_features = data_1[new_predictors].shape[1]
                 plt.barh(np.arange(n_features), tree.feature_importances_, align='center')
-                plt.yticks(np.arange(n_features), predictors)
+                plt.yticks(np.arange(n_features), new_predictors)
                 plt.xlabel("Feature importance")
                 plt.ylabel("Feature")
                 plt.ylim(-1, n_features)
