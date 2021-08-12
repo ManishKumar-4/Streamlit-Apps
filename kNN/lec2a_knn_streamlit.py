@@ -20,16 +20,26 @@ from sklearn.datasets import load_breast_cancer
 from sklearn.metrics import mean_squared_error 
 import math
 
+st.set_option('deprecation.showfileUploaderEncoding', False)
+st.set_option('deprecation.showPyplotGlobalUse', False)
 
 
 @st.cache(persist=True) # It will help in storing dataset and do not read again when any change is done on UI
 def load_data(file):
     data = pd.read_csv(file)
-    label = LabelEncoder() # transform categorical to numaric
-    for col in data.columns:
-        data[col] = label.fit_transform(data[col])
     return data
-
+    
+@st.cache(persist=True)    
+def preprocess_data(data):
+    #Missing Value imputation and encoding categorical columns
+    for col in data.columns:
+        if data[col].dtypes=='object':
+            data[col]=data[col].fillna(data[col].mode()[0])
+            label = LabelEncoder()
+            data[col] = label.fit_transform(data[col])
+        else:
+            data[col]=data[col].fillna(data[col].median())
+    return data
 
 @st.cache(persist=True)
 def split(df,test_size,target,predictors):
@@ -162,12 +172,11 @@ def main():
     st.set_option('deprecation.showPyplotGlobalUse',False)
     st.title('Streamlit kNN app for classification and Regression')
     st.write('Aim is to demo basic concepts.Select the option given on the left to proceed:')
-    st.sidebar.subheader('User Inputs')
+    st.sidebar.header('User Inputs')
     problem_type=st.sidebar.radio('Problem Type',("Classification","Regression"),key = 'problem_type')
     
     if problem_type=='Classification':
         menu=["Dummy Data Plot","Different n plot with Dummy Data","kNN Classification with Dummy Data","kNN on Real dataset"]
-        #menu=["Show Dummy data","Different n plot","kNN Classification","kNN Regression","kNN Regression different n","kNN on Real dataset"]
         choice=st.sidebar.selectbox("Menu",menu)
     
         if choice=="Dummy Data Plot":
@@ -208,60 +217,70 @@ def main():
             uploaded_file = st.sidebar.file_uploader("Choose a CSV file", accept_multiple_files=False,type=['csv'],key='uploaded_file')
             if uploaded_file is not None:
                data = load_data(uploaded_file)
+               data_1=data.copy()
+               
+               data_1=preprocess_data(data_1)
                if st.sidebar.checkbox("Show raw data",False):
                   st.write(data)
-               st.sidebar.subheader("Data Partition")
+                  st.write('Above is raw data')
+                  
+               if st.sidebar.checkbox("Show Preproces data",False):
+                  st.write(data_1)
+                  st.write('Above is Data After Preprocessing')
+               
+              
+               st.sidebar.subheader("Features Selection & Data Partition")
                #if st.sidebar.checkbox("Train/Test Split (default 70:30)",False,key='t_t_split') :
                tt_split = st.sidebar.beta_expander("Train/Test Split")
-               target = tt_split.selectbox("Select Target Variable",data.columns,key="target")
-               predictors = [v for v in data.columns if v!=target]
+               target = tt_split.selectbox("Select Target Variable",data_1.columns,key="target")
+               predictors = [v for v in data_1.columns if v!=target]
                new_predictors = tt_split.multiselect("Select Predictors",options=predictors,default=predictors)
                test_size = tt_split.number_input("Enter Test size (proportion)",0.10,0.99,step=0.1,key="test_size",value=0.30)
-               class_names = data[target].unique()
+               class_names = data_1[target].unique()
                
-            #X_train, X_test, y_train, y_test = split(data,test_size,target,new_predictors)
-               if  tt_split.button("split",key = "split"):
-                    X_train, X_test, y_train, y_test = split(data,test_size,target,new_predictors)
-               else:
-                    X_train, X_test, y_train, y_test = split(data,0.30,target,new_predictors)
-                    
-               st.write('X Train Data shape after splitting',X_train.shape)
-               st.write('X Test Data shape after splitting',X_test.shape)
+               if tt_split.checkbox("Dataset with selected features",False):
+                    st.write(data_1[new_predictors])
+                    st.write("Above is the dataset with selected features")
             
-               st.sidebar.subheader("Model Development")
-     
-               n=st.sidebar.slider("Select the number of neighbors for kNN",1,10)
+               if  tt_split.checkbox("Split the dataset",False):
+                    X_train, X_test, y_train, y_test = split(data_1,test_size,target,new_predictors)
+                    st.write('X Train Data shape after splitting',X_train.shape)
+                    st.write('X Test Data shape after splitting',X_test.shape)
                
-               st.sidebar.write('Click the below Plot button after selecting a particular n value')
-               if st.sidebar.button("Plot"):
-                # deine empty lists to capture output
-                training_accuracy = []
-                test_accuracy = []
-                
-                # try n_neighbors from 1 to 10
-                neighbors_settings = range(1, n+1)
-                
-                # use a for loop over k=1 to 10
-                for n_neighbors in neighbors_settings:
-
-                    # build the model
-                    clf = KNeighborsClassifier(n_neighbors=n_neighbors)
-                    clf.fit(X_train, y_train)
-
-                    # record training set accuracy
-                    training_accuracy.append(clf.score(X_train, y_train))
-    
-                    # record generalization accuracy
-                    test_accuracy.append(clf.score(X_test, y_test))
+                    st.sidebar.subheader("Model Development")
+                    n=st.sidebar.slider("Select the number of neighbors for kNN",1,10)
+                    st.sidebar.subheader('Click the below button after selecting a particular n value')
                     
-                # now plot the results and see    
-                plt.plot(neighbors_settings, training_accuracy, label="training accuracy")
-                plt.plot(neighbors_settings, test_accuracy, label="test accuracy")
-                plt.ylabel("Accuracy")
-                plt.xlabel("n_neighbors")
-                plt.legend()
-                st.pyplot()
-   
+                    if st.sidebar.button("Accuracy Vs neighbours Plot"):
+                        # deine empty lists to capture output
+                        training_accuracy = []
+                        test_accuracy = []
+                
+                        # try n_neighbors from 1 to 10
+                        neighbors_settings = range(1, n+1)
+                
+                        # use a for loop over k=1 to 10
+                        for n_neighbors in neighbors_settings:
+
+                            # build the model
+                            clf = KNeighborsClassifier(n_neighbors=n_neighbors)
+                            clf.fit(X_train, y_train)
+
+                            # record training set accuracy
+                            training_accuracy.append(clf.score(X_train, y_train))
+    
+                            # record generalization accuracy
+                            test_accuracy.append(clf.score(X_test, y_test))
+                    
+                        # now plot the results and see    
+                        plt.plot(neighbors_settings, training_accuracy, label="training accuracy")
+                        plt.plot(neighbors_settings, test_accuracy, label="test accuracy")
+                        plt.ylabel("Accuracy")
+                        plt.xlabel("n_neighbors")
+                        plt.legend()
+                        st.pyplot()
+              
+              
     if problem_type=='Regression':
     
         menu=["Dummy data plot","kNN on Dummy Set with different n","kNN on Dummy Set","kNN Regression on Real Dataset"]
@@ -310,75 +329,84 @@ def main():
             uploaded_file = st.sidebar.file_uploader("Choose a CSV file", accept_multiple_files=False,type=['csv'],key='uploaded_file')
             if uploaded_file is not None:
                data = load_data(uploaded_file)
+              
+               data_2=data.copy()
+               
+               data_2=preprocess_data(data_2)
                if st.sidebar.checkbox("Show raw data",False):
                   st.write(data)
-               st.sidebar.subheader("Data Partition")
+                  st.write('Above is raw data')
+                  
+               if st.sidebar.checkbox("Show Preproces data",False):
+                  st.write(data_2)
+                  st.write('Above is Data After Preprocessing')
+               
+               st.sidebar.subheader("Features Selection & Data Partition")
+               
                #if st.sidebar.checkbox("Train/Test Split (default 70:30)",False,key='t_t_split') :
                tt_split = st.sidebar.beta_expander("Train/Test Split")
-               target = tt_split.selectbox("Select Target Variable",data.columns,key="target")
-               predictors = [v for v in data.columns if v!=target]
+               target = tt_split.selectbox("Select Target Variable",data_2.columns,key="target")
+               predictors = [v for v in data_2.columns if v!=target]
                new_predictors = tt_split.multiselect("Select Predictors",options=predictors,default=predictors)
                test_size = tt_split.number_input("Enter Test size (proportion)",0.10,0.99,step=0.1,key="test_size",value=0.30)
-               class_names = data[target].unique()
+               class_names = data_2[target].unique()
                
-            #X_train, X_test, y_train, y_test = split(data,test_size,target,new_predictors)
-               if  tt_split.button("split",key = "split"):
-                    X_train, X_test, y_train, y_test = split(data,test_size,target,new_predictors)
-               else:
-                    X_train, X_test, y_train, y_test = split(data,0.30,target,new_predictors)
-                    
-               st.write('X Train Data shape after splitting',X_train.shape)
-               st.write('X Test Data shape after splitting',X_test.shape)
-            
-               st.sidebar.subheader("Model Development")
+               if tt_split.checkbox("Dataset with selected features",False):
+                    st.write(data_2[new_predictors])
+                    st.write('Above is the dataset with selected features')
+               
+               if  tt_split.checkbox("Split the dataset",False):
+                    X_train, X_test, y_train, y_test = split(data_2,test_size,target,new_predictors)
+                    st.write('X Train Data shape after splitting',X_train.shape)
+                    st.write('X Test Data shape after splitting',X_test.shape)
+              
+                    st.sidebar.subheader("Model Development")
      
-               n=st.sidebar.slider("Select the number of neighbors for kNN",1,10)
+                    n=st.sidebar.slider("Select the number of neighbors for kNN",1,10)
                
-               st.sidebar.write('Click the below Plot button after selecting a particular n value')
-               if st.sidebar.button("Plot"):
-                # deine empty lists to capture output
+                    st.sidebar.subheader('Click the below button after selecting a particular n value')
+                    if st.sidebar.button("Plot"):
+                    # deine empty lists to capture output
                 
-                rmse_values=[]
-                training_accuracy = []
-                test_accuracy = []
+                        rmse_values=[]
+                        training_accuracy = []
+                        test_accuracy = []
                 
-                # try n_neighbors from 1 to 10
-                neighbors_settings = range(1, n+1)
+                        # try n_neighbors from 1 to 10
+                        neighbors_settings = range(1, n+1)
                 
-                # use a for loop over k=1 to 10
-                for n_neighbors in neighbors_settings:
+                        # use a for loop over k=1 to 10
+                        for n_neighbors in neighbors_settings:
 
-                    # build the model
-                    reg = KNeighborsRegressor(n_neighbors=n_neighbors)
-                    reg.fit(X_train, y_train)
+                            # build the model
+                            reg = KNeighborsRegressor(n_neighbors=n_neighbors)
+                            reg.fit(X_train, y_train)
                     
-                    y_pred=reg.predict(X_test)
+                            y_pred=reg.predict(X_test)
                     
-                    err=math.sqrt(mean_squared_error(y_test,y_pred))
+                            err=math.sqrt(mean_squared_error(y_test,y_pred))
                     
-                    rmse_values.append(err)
-                    # record training set accuracy
-                    training_accuracy.append(reg.score(X_train, y_train))
+                            rmse_values.append(err)
+                            # record training set accuracy
+                            training_accuracy.append(reg.score(X_train, y_train))
     
-                    # record generalization accuracy
-                    test_accuracy.append(reg.score(X_test, y_test))
-                    
+                            # record generalization accuracy
+                            test_accuracy.append(reg.score(X_test, y_test))
+                  
+                        # now plot the results and see 
+                        plt.subplot(2, 1, 1)
+                        plt.plot(neighbors_settings, rmse_values, label="RMSE")
+                        plt.ylabel("RMSE")
+                        plt.xlabel("n_neighbors")
                 
-                    
-                # now plot the results and see 
-                plt.subplot(2, 1, 1)
-                plt.plot(neighbors_settings, rmse_values, label="RMSE")
-                plt.ylabel("RMSE")
-                plt.xlabel("n_neighbors")
-                
-                plt.subplot(2, 1, 2)
-                # now plot the results and see    
-                plt.plot(neighbors_settings, training_accuracy, label="training accuracy")
-                plt.plot(neighbors_settings, test_accuracy, label="test accuracy")
-                plt.ylabel("Accuracy")
-                plt.xlabel("n_neighbors")
-                plt.legend()
-                st.pyplot()
+                        plt.subplot(2, 1, 2)
+                        # now plot the results and see    
+                        plt.plot(neighbors_settings, training_accuracy, label="training accuracy")
+                        plt.plot(neighbors_settings, test_accuracy, label="test accuracy")
+                        plt.ylabel("Accuracy")
+                        plt.xlabel("n_neighbors")
+                        plt.legend()
+                        st.pyplot()
             
             
        
