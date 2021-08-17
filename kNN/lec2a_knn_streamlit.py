@@ -198,7 +198,7 @@ def main():
             st.markdown(" ## Accuracy and plot for kNN classification")
             #st.sidebar.subheader("Data Partition")
             st.sidebar.subheader("Data Partition")
-            tt_split = st.sidebar.beta_expander("Train/Test Split")
+            tt_split = st.sidebar.expander("Train/Test Split")
             test_size = tt_split.number_input("Enter Test size (proportion)",0.10,0.99,step=0.1,key="test_size",value=0.30)
             n=st.sidebar.slider("Select the number of neighbors",1,5)
             
