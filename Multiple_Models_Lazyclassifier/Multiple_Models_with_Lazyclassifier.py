@@ -66,7 +66,7 @@ def main():
             st.write('Above is raw data of shape:',data.shape)
        
         #EDA Purpose
-        if st.sidebar.checkbox('Click the button for EDA',False):
+        if st.sidebar.checkbox('EDA',False):
             
             
             st.write('Missing Values present in the dataset:',data.isnull().sum())
