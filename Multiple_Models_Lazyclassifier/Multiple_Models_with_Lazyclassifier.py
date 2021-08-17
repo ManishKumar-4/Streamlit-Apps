@@ -91,7 +91,7 @@ def main():
        
         st.sidebar.subheader("Features Selection & Data Partition")
         #if st.sidebar.checkbox("Train/Test Split (default 70:30)",False,key='t_t_split') :
-        tt_split = st.sidebar.beta_expander("Train/Test Split")
+        tt_split = st.sidebar.expander("Train/Test Split")
         target = tt_split.selectbox("Select Target Variable",data_1.columns,key="target")
         predictors = [v for v in data_1.columns if v!=target]
         new_predictors = tt_split.multiselect("Select Predictors",options=predictors,default=predictors)
